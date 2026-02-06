@@ -28,6 +28,8 @@ export default function PhaseWizardPage() {
   );
   const [synthesis, setSynthesis] = useState<Record<string, any>>({});
   const [iterationCount, setIterationCount] = useState(0);
+  const [iterationFeedback, setIterationFeedback] = useState("");
+  const [synthesisError, setSynthesisError] = useState<string | null>(null);
   const [wizardStep, setWizardStep] = useState<WizardStep>("learning");
   const [loading, setLoading] = useState(true);
 
@@ -131,9 +133,10 @@ export default function PhaseWizardPage() {
         }
       ));
 
-  // Synthesize (placeholder for Step 5)
+  // Synthesize via Claude API
   async function handleSynthesize() {
     setWizardStep("synthesizing");
+    setSynthesisError(null);
 
     // Save current inputs before synthesizing
     await supabase.from("phase_data").upsert(
@@ -146,11 +149,35 @@ export default function PhaseWizardPage() {
       { onConflict: "project_id,phase" }
     );
 
-    // Placeholder: Step 5 will replace with actual Claude API call
-    setTimeout(() => {
-      setSynthesis({});
+    try {
+      const res = await fetch("/api/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phase: phaseNumber,
+          inputs,
+          ...(iterationFeedback && {
+            previousSynthesis: synthesis,
+            iterationFeedback,
+          }),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setSynthesisError(data.error || "Synthesis failed");
+        setWizardStep("review");
+        return;
+      }
+
+      setSynthesis(data.synthesis);
+      setIterationFeedback("");
       setWizardStep("review");
-    }, 1500);
+    } catch {
+      setSynthesisError("Network error. Please try again.");
+      setWizardStep("review");
+    }
   }
 
   // Accept synthesis and advance
@@ -182,12 +209,17 @@ export default function PhaseWizardPage() {
     router.push(`/dashboard/${projectId}`);
   }
 
-  // Iterate: save current synthesis to history, back to input
+  // Iterate: save current synthesis to history, go to iterate step for feedback
   async function handleIterate() {
+    setWizardStep("iterating");
+  }
+
+  // Submit iteration with feedback
+  async function handleSubmitIteration() {
     const currentHistory = phaseData?.iteration_history || [];
     const updatedHistory = [
       ...currentHistory,
-      { synthesis, iterated_at: new Date().toISOString() },
+      { synthesis, feedback: iterationFeedback, iterated_at: new Date().toISOString() },
     ];
 
     await supabase.from("phase_data").upsert(
@@ -202,9 +234,9 @@ export default function PhaseWizardPage() {
       { onConflict: "project_id,phase" }
     );
 
-    setSynthesis({});
     setIterationCount(updatedHistory.length);
-    setWizardStep("input");
+    // Go straight to synthesizing with the feedback
+    handleSynthesize();
   }
 
   const PhaseForm = getPhaseForm(phaseNumber);
@@ -228,9 +260,13 @@ export default function PhaseWizardPage() {
       onSynthesize={handleSynthesize}
       onAccept={handleAccept}
       onIterate={handleIterate}
+      onSubmitIteration={handleSubmitIteration}
       onBack={() => router.push(`/dashboard/${projectId}`)}
       synthesis={synthesis}
+      synthesisError={synthesisError}
       iterationCount={iterationCount}
+      iterationFeedback={iterationFeedback}
+      onIterationFeedbackChange={setIterationFeedback}
     >
       <PhaseForm values={inputs} onChange={setInputs} />
     </PhaseWizardShell>
