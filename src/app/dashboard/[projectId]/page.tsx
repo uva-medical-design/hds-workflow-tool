@@ -13,17 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PHASE_CONFIGS } from "@/lib/phase-config";
 import { ArrowLeftIcon, CheckCircleIcon, CircleIcon, PlayCircleIcon } from "lucide-react";
-
-const PHASES = [
-  { number: 1, name: "Problem Discovery", description: "Define the healthcare problem you want to solve" },
-  { number: 2, name: "User Deep-Dive", description: "Understand your stakeholders and primary users" },
-  { number: 3, name: "Jobs to Be Done", description: "Identify the functional, emotional, and social jobs" },
-  { number: 4, name: "Journey & Opportunities", description: "Map the current experience and find opportunities" },
-  { number: 5, name: "Features & Priorities", description: "Translate insights into prioritized features" },
-  { number: 6, name: "Technical Spec", description: "Define constraints, success criteria, and tradeoffs" },
-  { number: 7, name: "Build Brief", description: "Finalize the PRD for your build tool of choice" },
-];
 
 export default function ProjectWorkspacePage() {
   const params = useParams();
@@ -116,7 +107,7 @@ export default function ProjectWorkspacePage() {
       {/* Phase List */}
       <main className="mx-auto max-w-4xl px-6 py-8">
         <div className="flex flex-col gap-3">
-          {PHASES.map((phase) => {
+          {PHASE_CONFIGS.map((phase) => {
             const status = getPhaseStatus(phase.number);
             return (
               <Card
@@ -130,9 +121,7 @@ export default function ProjectWorkspacePage() {
                 } ${status !== "locked" ? "cursor-pointer hover:border-foreground/20" : ""}`}
                 onClick={() => {
                   if (status !== "locked") {
-                    // Phase wizard will be built in Step 4
-                    // For now, just log
-                    console.log(`Navigate to phase ${phase.number}`);
+                    router.push(`/dashboard/${projectId}/phase/${phase.number}`);
                   }
                 }}
               >
