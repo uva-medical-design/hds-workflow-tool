@@ -32,6 +32,8 @@ export default function PhaseWizardPage() {
   const [synthesisError, setSynthesisError] = useState<string | null>(null);
   const [wizardStep, setWizardStep] = useState<WizardStep>("learning");
   const [loading, setLoading] = useState(true);
+  const [generatingArtifacts, setGeneratingArtifacts] = useState(false);
+  const [artifactStep, setArtifactStep] = useState("");
 
   // Redirect if no user
   useEffect(() => {
@@ -195,6 +197,12 @@ export default function PhaseWizardPage() {
       { onConflict: "project_id,phase" }
     );
 
+    // Phase 7: trigger artifact generation pipeline
+    if (phaseNumber === 7) {
+      await handlePhase7Artifacts();
+      return;
+    }
+
     // Advance project to next phase if this is the current phase
     if (project && phaseNumber === project.current_phase && phaseNumber < 7) {
       await supabase
@@ -207,6 +215,154 @@ export default function PhaseWizardPage() {
     }
 
     router.push(`/dashboard/${projectId}`);
+  }
+
+  // Phase 7 artifact generation: PRD → Story → GitHub commit → Version record
+  async function handlePhase7Artifacts() {
+    setGeneratingArtifacts(true);
+    setSynthesisError(null);
+
+    try {
+      // Step 1: Generate PRD
+      setArtifactStep("Generating PRD from all 7 phases...");
+      const prdRes = await fetch("/api/generate-prd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const prdData = await prdRes.json();
+      if (!prdRes.ok || prdData.error) {
+        throw new Error(prdData.error || "PRD generation failed");
+      }
+
+      // Step 2: Generate story
+      setArtifactStep("Creating reveal.js design story...");
+      const branding = (inputs as any).branding || {};
+      const projectName = (inputs as any).project_name || project?.name || "Untitled";
+      const storyRes = await fetch("/api/generate-story", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prdContent: prdData.prdContent,
+          branding: {
+            primaryColor: branding.primary_color || "#18181b",
+            tagline: branding.tagline || "",
+            projectName,
+          },
+        }),
+      });
+      const storyData = await storyRes.json();
+      if (!storyRes.ok || storyData.error) {
+        throw new Error(storyData.error || "Story generation failed");
+      }
+
+      // Step 3: Determine version number
+      const { data: existingVersions } = await supabase
+        .from("versions")
+        .select("version_number")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const nextVersion = getNextVersion(
+        existingVersions?.[0]?.version_number || null
+      );
+
+      // Step 4: Attempt GitHub commit
+      setArtifactStep("Committing artifacts to GitHub...");
+      const metadata = {
+        projectId,
+        projectName,
+        studentName: user?.name || "Unknown",
+        version: nextVersion,
+        generatedAt: new Date().toISOString(),
+        phases: 7,
+      };
+
+      let commitResult: {
+        sha: string | null;
+        commitUrl: string | null;
+        fileUrls: Record<string, string> | null;
+      } = { sha: null, commitUrl: null, fileUrls: null };
+
+      try {
+        const commitRes = await fetch("/api/commit-artifacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            files: [
+              { name: "prd.md", content: prdData.prdContent },
+              { name: "story.html", content: storyData.storyContent },
+              { name: "metadata.json", content: JSON.stringify(metadata, null, 2) },
+            ],
+            studentName: user?.name || "Unknown",
+            projectSlug: project?.slug || "project",
+            version: nextVersion,
+          }),
+        });
+        const commitData = await commitRes.json();
+        if (commitRes.ok && !commitData.error) {
+          commitResult = commitData;
+        }
+      } catch {
+        // GitHub commit failed — continue without it
+        console.warn("GitHub commit failed, saving version without URLs");
+      }
+
+      // Step 5: Create version record in Supabase
+      setArtifactStep("Saving version record...");
+      const prdUrl = commitResult.fileUrls
+        ? Object.entries(commitResult.fileUrls).find(([k]) => k.endsWith("prd.md"))?.[1] || null
+        : null;
+      const storyUrl = commitResult.fileUrls
+        ? Object.entries(commitResult.fileUrls).find(([k]) => k.endsWith("story.html"))?.[1] || null
+        : null;
+
+      const { data: version, error: versionError } = await supabase
+        .from("versions")
+        .insert({
+          project_id: projectId,
+          version_number: nextVersion,
+          trigger: "phase_7_complete",
+          trigger_details: { phase: 7 },
+          prd_url: prdUrl,
+          story_url: storyUrl,
+          prd_content: prdData.prdContent,
+          story_content: storyData.storyContent,
+          diff_summary: { added: ["Initial PRD", "Design Story"], changed: [], removed: [] },
+          github_commit_sha: commitResult.sha,
+          github_commit_url: commitResult.commitUrl,
+        })
+        .select()
+        .single();
+
+      if (versionError) {
+        throw new Error("Failed to save version: " + versionError.message);
+      }
+
+      // Mark project as completed
+      await supabase
+        .from("projects")
+        .update({ status: "completed" })
+        .eq("id", projectId);
+
+      // Navigate to version page
+      router.push(`/dashboard/${projectId}/version/${version.id}`);
+    } catch (err: any) {
+      console.error("Phase 7 artifact generation error:", err);
+      setSynthesisError(err.message || "Artifact generation failed");
+      setGeneratingArtifacts(false);
+      setArtifactStep("");
+    }
+  }
+
+  function getNextVersion(lastVersion: string | null): string {
+    if (!lastVersion) return "v1.0";
+    const match = lastVersion.match(/^v(\d+)\.(\d+)$/);
+    if (!match) return "v1.0";
+    const major = parseInt(match[1]);
+    const minor = parseInt(match[2]);
+    return `v${major}.${minor + 1}`;
   }
 
   // Iterate: save current synthesis to history, go to iterate step for feedback
@@ -245,6 +401,18 @@ export default function PhaseWizardPage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (generatingArtifacts) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6">
+        <div className="size-8 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
+        <p className="text-sm font-medium">{artifactStep}</p>
+        <p className="text-xs text-muted-foreground">
+          This may take a minute — we&apos;re compiling your full design sprint into a PRD and design story.
+        </p>
       </div>
     );
   }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
-import type { Project, PhaseData } from "@/types";
+import type { Project, PhaseData, Version } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PHASE_CONFIGS } from "@/lib/phase-config";
-import { ArrowLeftIcon, CheckCircleIcon, CircleIcon, PlayCircleIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckCircleIcon, CircleIcon, FileTextIcon, PlayCircleIcon } from "lucide-react";
 
 export default function ProjectWorkspacePage() {
   const params = useParams();
@@ -24,6 +24,7 @@ export default function ProjectWorkspacePage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [phaseDataMap, setPhaseDataMap] = useState<Record<number, PhaseData>>({});
+  const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,9 +41,14 @@ export default function ProjectWorkspacePage() {
     if (!projectId) return;
 
     async function fetchProject() {
-      const [projectRes, phasesRes] = await Promise.all([
+      const [projectRes, phasesRes, versionsRes] = await Promise.all([
         supabase.from("projects").select("*").eq("id", projectId).single(),
         supabase.from("phase_data").select("*").eq("project_id", projectId),
+        supabase
+          .from("versions")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false }),
       ]);
 
       if (projectRes.data) setProject(projectRes.data);
@@ -53,6 +59,7 @@ export default function ProjectWorkspacePage() {
         }
         setPhaseDataMap(map);
       }
+      if (versionsRes.data) setVersions(versionsRes.data);
       setLoading(false);
     }
 
@@ -156,6 +163,54 @@ export default function ProjectWorkspacePage() {
             );
           })}
         </div>
+
+        {/* Version History */}
+        {versions.length > 0 && (
+          <div className="mt-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Version History
+            </h2>
+            <div className="flex flex-col gap-2">
+              {versions.map((v) => (
+                <Card
+                  key={v.id}
+                  className="cursor-pointer transition-colors hover:border-foreground/20"
+                  onClick={() =>
+                    router.push(`/dashboard/${projectId}/version/${v.id}`)
+                  }
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <FileTextIcon className="size-5 text-foreground" />
+                      <div className="flex-1">
+                        <CardTitle className="text-base">
+                          {v.version_number}
+                        </CardTitle>
+                        <CardDescription>
+                          {v.trigger === "phase_7_complete"
+                            ? "Design sprint completion"
+                            : v.trigger === "build_feedback"
+                              ? "Post-build revision"
+                              : "Manual revision"}{" "}
+                          &mdash;{" "}
+                          {new Date(v.created_at).toLocaleDateString()}
+                        </CardDescription>
+                      </div>
+                      {v.github_commit_sha && (
+                        <span className="text-xs text-muted-foreground">
+                          {v.github_commit_sha.slice(0, 7)}
+                        </span>
+                      )}
+                      <Button size="sm" variant="outline">
+                        View
+                      </Button>
+                    </div>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
