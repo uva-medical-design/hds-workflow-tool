@@ -42,7 +42,7 @@ async function runSchema() {
   const response = await fetch(`${supabaseUrl}/rest/v1/`, {
     method: "GET",
     headers: {
-      apikey: serviceRoleKey,
+      apikey: serviceRoleKey!,
       Authorization: `Bearer ${serviceRoleKey}`,
     },
   });
