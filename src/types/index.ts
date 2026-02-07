@@ -136,14 +136,25 @@ export interface Phase3Inputs {
 }
 
 export interface Phase4Inputs {
+  // Step A: Journey Map
   journey_steps: Array<{
     step: string;
     label: "friction" | "neutral" | "delight";
     notes: string;
   }>;
-  opportunities: string[];
-  hmw_statements: string[];
-  selected_opportunity: string;
+  journey_map_accepted: boolean;
+  journey_synthesis: Record<string, unknown> | null;
+
+  // Step B: Opportunities & HMWs
+  selected_opportunities: Array<{
+    source_step_index: number | "custom";
+    description: string;
+    hmw_options: string[];
+    chosen_hmw: string;
+    was_edited: boolean;
+  }>;
+  opportunities_accepted: boolean;
+  opportunities_synthesis: Record<string, unknown> | null;
 }
 
 export interface Phase5Inputs {

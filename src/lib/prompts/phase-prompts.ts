@@ -96,12 +96,70 @@ Respond with valid JSON in this exact format:
 }`;
 }
 
-export function phase4Prompt(inputs: Record<string, any>): string {
+export function phase4JourneyPrompt(inputs: Record<string, any>): string {
   const steps = (inputs.journey_steps || [])
-    .map((s: any) => `[${s.label.toUpperCase()}] ${s.step} — ${s.notes}`)
+    .map((s: any, i: number) => `${i + 1}. [${s.label.toUpperCase()}] ${s.step} — ${s.notes}`)
     .join("\n  ") || "(none listed)";
-  const opportunities = (inputs.opportunities || []).join(", ") || "(none listed)";
-  const hmw = (inputs.hmw_statements || []).join("\n  ") || "(none listed)";
+
+  return `You are a healthcare design thinking coach helping a medical student analyze their user journey map.
+
+The student has mapped these journey steps:
+
+**Journey Steps:**
+  ${steps}
+
+Synthesize the journey map into a structured analysis. Identify the emotional arc, friction points, and delight moments.
+
+Respond with valid JSON in this exact format:
+{
+  "journey_summary": "A 2-3 sentence narrative of the current user journey",
+  "emotional_arc": "A description of how the user's emotional state changes across the journey",
+  "friction_points": [{"step_index": 0, "description": "what makes this step painful", "severity": "high"}],
+  "delight_moments": ["what works well in the current experience"],
+  "patterns": ["pattern or theme noticed across multiple steps"],
+  "suggested_focus_areas": ["area worth exploring for design opportunities"]
+}`;
+}
+
+export function phase4HmwPrompt(inputs: Record<string, any>): string {
+  const steps = (inputs.journey_steps || [])
+    .map((s: any, i: number) => `${i + 1}. [${s.label.toUpperCase()}] ${s.step} — ${s.notes}`)
+    .join("\n  ") || "(none listed)";
+  const opportunities = (inputs.selected_opportunities || [])
+    .map((o: any, i: number) => `${i + 1}. ${o.description} (source: ${o.source_step_index === "custom" ? "custom" : `step ${(o.source_step_index as number) + 1}`})`)
+    .join("\n  ") || "(none listed)";
+
+  return `You are a healthcare design thinking coach helping a medical student generate "How Might We" statements for their selected design opportunities.
+
+The student's journey map:
+  ${steps}
+
+The student has selected these opportunities to explore:
+  ${opportunities}
+
+For each opportunity, generate exactly 3 "How Might We..." statement options. Each HMW should:
+- Reframe the problem as an opportunity
+- Be specific enough to inspire solutions but open enough to allow creative exploration
+- Connect back to the user's experience from the journey map
+
+Respond with valid JSON in this exact format:
+{
+  "hmw_sets": [
+    {
+      "opportunity_description": "the opportunity description",
+      "hmw_options": ["How might we ...", "How might we ...", "How might we ..."]
+    }
+  ]
+}`;
+}
+
+export function phase4FullPrompt(inputs: Record<string, any>): string {
+  const steps = (inputs.journey_steps || [])
+    .map((s: any, i: number) => `${i + 1}. [${s.label.toUpperCase()}] ${s.step} — ${s.notes}`)
+    .join("\n  ") || "(none listed)";
+  const opportunities = (inputs.selected_opportunities || [])
+    .map((o: any) => `${o.description} → HMW: ${o.chosen_hmw}`)
+    .join("\n  ") || "(none listed)";
 
   return `You are a healthcare design thinking coach helping a medical student map the user journey and identify opportunities.
 
@@ -110,12 +168,8 @@ The student has mapped these journey steps:
 **Journey Steps:**
   ${steps}
 
-**Opportunities Identified:** ${opportunities}
-
-**How Might We Statements:**
-  ${hmw}
-
-**Selected Opportunity:** ${inputs.selected_opportunity || "(not provided)"}
+**Selected Opportunities & How Might We Statements:**
+  ${opportunities}
 
 Synthesize the journey into clear insights. Highlight the most impactful friction points and help the student focus on the strongest opportunity.
 
@@ -242,11 +296,15 @@ Respond with valid JSON in this exact format:
 }`;
 }
 
-export const PHASE_PROMPTS: Record<number, (inputs: Record<string, any>) => string> = {
+export const PHASE_PROMPTS: Record<number, (inputs: Record<string, any>, subStep?: string) => string> = {
   1: phase1Prompt,
   2: phase2Prompt,
   3: phase3Prompt,
-  4: phase4Prompt,
+  4: (inputs, subStep) => {
+    if (subStep === "journey") return phase4JourneyPrompt(inputs);
+    if (subStep === "generate_hmw") return phase4HmwPrompt(inputs);
+    return phase4FullPrompt(inputs);
+  },
   5: phase5Prompt,
   6: phase6Prompt,
   7: phase7Prompt,

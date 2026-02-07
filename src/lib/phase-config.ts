@@ -85,9 +85,11 @@ export const PHASE_CONFIGS: PhaseConfig[] = [
     },
     emptyInputs: {
       journey_steps: [],
-      opportunities: [],
-      hmw_statements: [],
-      selected_opportunity: "",
+      journey_map_accepted: false,
+      journey_synthesis: null,
+      selected_opportunities: [],
+      opportunities_accepted: false,
+      opportunities_synthesis: null,
     } satisfies Phase4Inputs,
   },
   {

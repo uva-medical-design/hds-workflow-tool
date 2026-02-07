@@ -3,6 +3,7 @@ import { PHASE_PROMPTS } from "./phase-prompts";
 interface PromptOptions {
   phase: number;
   inputs: Record<string, any>;
+  subStep?: string;
   previousSynthesis?: Record<string, any>;
   iterationFeedback?: string;
 }
@@ -19,14 +20,14 @@ Rules:
 }
 
 export function getUserPrompt(options: PromptOptions): string {
-  const { phase, inputs, previousSynthesis, iterationFeedback } = options;
+  const { phase, inputs, subStep, previousSynthesis, iterationFeedback } = options;
 
   const promptFn = PHASE_PROMPTS[phase];
   if (!promptFn) {
     throw new Error(`No prompt template for phase ${phase}`);
   }
 
-  let prompt = promptFn(inputs);
+  let prompt = promptFn(inputs, subStep);
 
   // Add iteration context if this is a revision
   if (previousSynthesis && iterationFeedback) {

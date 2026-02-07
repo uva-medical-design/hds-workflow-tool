@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
   let body: {
     phase: number;
     inputs: Record<string, any>;
+    subStep?: string;
     previousSynthesis?: Record<string, any>;
     iterationFeedback?: string;
   };
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { phase, inputs, previousSynthesis, iterationFeedback } = body;
+  const { phase, inputs, subStep, previousSynthesis, iterationFeedback } = body;
 
   if (!phase || phase < 1 || phase > 7) {
     return NextResponse.json(
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
           content: getUserPrompt({
             phase,
             inputs,
+            subStep,
             previousSynthesis,
             iterationFeedback,
           }),
