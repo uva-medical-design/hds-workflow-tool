@@ -3,6 +3,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase";
 import { prdCompilationPrompt } from "@/lib/prompts/artifact-prompts";
 
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^```(?:\w+)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  return match ? match[1].trim() : trimmed;
+}
+
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
     const textBlock = message.content.find((b) => b.type === "text");
-    const prdContent = textBlock?.text || "";
+    const prdContent = stripCodeFences(textBlock?.text || "");
 
     return NextResponse.json({ prdContent });
   } catch (err: any) {

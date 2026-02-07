@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getSystemPrompt, getUserPrompt } from "@/lib/prompts";
 
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  return match ? match[1].trim() : trimmed;
+}
+
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -73,7 +79,8 @@ export async function POST(request: NextRequest) {
     // Parse JSON response, fallback to wrapping raw text
     let synthesis: Record<string, any>;
     try {
-      synthesis = JSON.parse(rawText);
+      const cleaned = stripCodeFences(rawText);
+      synthesis = JSON.parse(cleaned);
     } catch {
       synthesis = { raw_response: rawText };
     }

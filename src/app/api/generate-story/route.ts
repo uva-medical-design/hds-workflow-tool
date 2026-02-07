@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { storyGenerationPrompt } from "@/lib/prompts/artifact-prompts";
 
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^```(?:\w+)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  return match ? match[1].trim() : trimmed;
+}
+
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest) {
     });
 
     const textBlock = message.content.find((b) => b.type === "text");
-    const storyContent = textBlock?.text || "";
+    const storyContent = stripCodeFences(textBlock?.text || "");
 
     return NextResponse.json({ storyContent });
   } catch (err: any) {
