@@ -430,6 +430,8 @@ export default function PhaseWizardPage() {
       onIterate={handleIterate}
       onSubmitIteration={handleSubmitIteration}
       onBack={() => router.push(`/dashboard/${projectId}`)}
+      onPreviousPhase={phaseNumber > 1 ? () => router.push(`/dashboard/${projectId}/phase/${phaseNumber - 1}`) : undefined}
+      canSynthesize={phaseNumber === 4 ? !!(inputs as any).opportunities_accepted : true}
       synthesis={synthesis}
       synthesisError={synthesisError}
       iterationCount={iterationCount}

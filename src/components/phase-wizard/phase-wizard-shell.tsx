@@ -11,6 +11,7 @@ import type { SaveStatus } from "@/lib/use-autosave";
 import {
   AlertCircleIcon,
   ArrowLeftIcon,
+  BookOpenIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   LoaderIcon,
@@ -36,6 +37,8 @@ interface PhaseWizardShellProps {
   onIterate: () => void;
   onSubmitIteration: () => void;
   onBack: () => void;
+  onPreviousPhase?: () => void;
+  canSynthesize?: boolean;
   synthesis: Record<string, any>;
   synthesisError: string | null;
   iterationCount: number;
@@ -104,6 +107,8 @@ export function PhaseWizardShell({
   onIterate,
   onSubmitIteration,
   onBack,
+  onPreviousPhase,
+  canSynthesize = true,
   synthesis,
   synthesisError,
   iterationCount,
@@ -111,7 +116,19 @@ export function PhaseWizardShell({
   onIterationFeedbackChange,
   children,
 }: PhaseWizardShellProps) {
-  const [learningExpanded, setLearningExpanded] = useState(true);
+  const [learningExpanded, setLearningExpanded] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const key = `hds-learning-seen-${config.number}`;
+    return !localStorage.getItem(key);
+  });
+
+  function handleCollapseLearning() {
+    const key = `hds-learning-seen-${config.number}`;
+    if (learningExpanded) {
+      localStorage.setItem(key, "1");
+    }
+    setLearningExpanded(!learningExpanded);
+  }
 
   const showForm =
     wizardStep === "input" ||
@@ -127,6 +144,12 @@ export function PhaseWizardShell({
           <Button variant="ghost" size="icon" onClick={onBack}>
             <ArrowLeftIcon className="size-4" />
           </Button>
+          {onPreviousPhase && (
+            <Button variant="ghost" size="sm" onClick={onPreviousPhase}>
+              <ArrowLeftIcon className="size-3" />
+              Previous Phase
+            </Button>
+          )}
           <div className="flex-1">
             <h1 className="text-sm font-semibold">
               Phase {config.number}: {config.name}
@@ -170,10 +193,13 @@ export function PhaseWizardShell({
               <div className="rounded-lg border border-border">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/50"
-                  onClick={() => setLearningExpanded(!learningExpanded)}
+                  className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-semibold hover:bg-muted/50"
+                  onClick={handleCollapseLearning}
                 >
-                  <span>{config.microLearning.title}</span>
+                  <span className="flex items-center gap-2">
+                    <BookOpenIcon className="size-4 text-muted-foreground" />
+                    Learn about this phase
+                  </span>
                   {learningExpanded ? (
                     <ChevronUpIcon className="size-4 text-muted-foreground" />
                   ) : (
@@ -181,8 +207,11 @@ export function PhaseWizardShell({
                   )}
                 </button>
                 {learningExpanded && (
-                  <div className="border-t px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                    {config.microLearning.content}
+                  <div className="border-t px-5 py-4">
+                    <h4 className="mb-2 text-sm font-medium">{config.microLearning.title}</h4>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {config.microLearning.content}
+                    </p>
                   </div>
                 )}
               </div>
@@ -193,7 +222,7 @@ export function PhaseWizardShell({
               {/* Action bar */}
               {wizardStep === "input" && (
                 <div className="flex items-center justify-end gap-3 border-t border-border pt-6">
-                  <Button onClick={onSynthesize}>
+                  <Button onClick={onSynthesize} disabled={!canSynthesize}>
                     <SparklesIcon className="size-4" />
                     Synthesize with AI
                   </Button>
