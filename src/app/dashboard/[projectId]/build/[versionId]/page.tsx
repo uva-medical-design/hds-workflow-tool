@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ClipboardIcon } from "lucide-react";
 import { generateBuildPrompt } from "@/lib/build-prompt";
 import { PrdReference } from "@/components/build-mode/prd-reference";
+import { FeatureChecklist } from "@/components/build-mode/feature-checklist";
 import { FeedbackEntryInput } from "@/components/build-mode/feedback-entry-input";
 import { FeedbackEntryList } from "@/components/build-mode/feedback-entry-list";
 import type { Version, Project, FeedbackEntry, FeedbackTag } from "@/types";
@@ -157,7 +158,12 @@ export default function BuildModePage() {
         {/* PRD Reference (collapsible) */}
         <PrdReference version={version} project={project} />
 
-        {/* Feature Checklist placeholder — Commit 5 */}
+        {/* Feature Checklist */}
+        <FeatureChecklist
+          versionId={versionId}
+          projectId={projectId}
+          prdContent={version.prd_content}
+        />
 
         {/* Feedback Stream */}
         <div>
