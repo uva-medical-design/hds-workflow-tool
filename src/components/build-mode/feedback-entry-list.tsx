@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TrashIcon } from "lucide-react";
+import { timeAgo } from "@/lib/time-utils";
 import type { FeedbackEntry, FeedbackTag } from "@/types";
 
 const TAG_STYLES: Record<FeedbackTag, string> = {
@@ -51,8 +52,8 @@ export function FeedbackEntryList({ entries, onDelete }: FeedbackEntryListProps)
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm whitespace-pre-wrap">{entry.content}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {new Date(entry.created_at).toLocaleString()}
+              <p className="mt-1 text-xs text-muted-foreground" title={new Date(entry.created_at).toLocaleString()}>
+                {timeAgo(entry.created_at)}
               </p>
             </div>
             <Button

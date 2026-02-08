@@ -13,6 +13,7 @@ import { FeatureChecklist } from "@/components/build-mode/feature-checklist";
 import { FeedbackEntryInput } from "@/components/build-mode/feedback-entry-input";
 import { FeedbackEntryList } from "@/components/build-mode/feedback-entry-list";
 import { SynthesisResults } from "@/components/build-mode/synthesis-results";
+import { VersionTimeline } from "@/components/build-mode/version-timeline";
 import type { Version, Project, FeedbackEntry, FeedbackTag } from "@/types";
 
 type SynthesisState = "idle" | "synthesizing" | "results" | "generating";
@@ -27,6 +28,7 @@ export default function BuildModePage() {
   const [version, setVersion] = useState<Version | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [entries, setEntries] = useState<FeedbackEntry[]>([]);
+  const [allVersions, setAllVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -50,19 +52,26 @@ export default function BuildModePage() {
     if (!versionId || !projectId) return;
 
     async function fetchData() {
-      const [versionRes, projectRes, entriesRes] = await Promise.all([
-        supabase.from("versions").select("*").eq("id", versionId).single(),
-        supabase.from("projects").select("*").eq("id", projectId).single(),
-        supabase
-          .from("feedback_entries")
-          .select("*")
-          .eq("version_id", versionId)
-          .order("created_at", { ascending: false }),
-      ]);
+      const [versionRes, projectRes, entriesRes, versionsRes] =
+        await Promise.all([
+          supabase.from("versions").select("*").eq("id", versionId).single(),
+          supabase.from("projects").select("*").eq("id", projectId).single(),
+          supabase
+            .from("feedback_entries")
+            .select("*")
+            .eq("version_id", versionId)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("versions")
+            .select("*")
+            .eq("project_id", projectId)
+            .order("created_at", { ascending: false }),
+        ]);
 
       if (versionRes.data) setVersion(versionRes.data);
       if (projectRes.data) setProject(projectRes.data);
       if (entriesRes.data) setEntries(entriesRes.data);
+      if (versionsRes.data) setAllVersions(versionsRes.data);
       setLoading(false);
     }
 
@@ -379,6 +388,16 @@ export default function BuildModePage() {
             </div>
           </div>
         )}
+
+        {/* Version Timeline */}
+        <VersionTimeline
+          versions={allVersions}
+          currentVersionId={versionId}
+          projectId={projectId}
+          onNavigate={(vid) =>
+            router.push(`/dashboard/${projectId}/build/${vid}`)
+          }
+        />
       </main>
     </div>
   );

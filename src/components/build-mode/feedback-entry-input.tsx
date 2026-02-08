@@ -80,13 +80,18 @@ export function FeedbackEntryInput({ onSubmit, disabled }: FeedbackEntryInputPro
               Note
             </button>
           </div>
-          <Button
-            size="sm"
-            onClick={handleSubmit}
-            disabled={!content.trim() || submitting || disabled}
-          >
-            {submitting ? "Saving..." : "Submit"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Cmd+Enter
+            </span>
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={!content.trim() || submitting || disabled}
+            >
+              {submitting ? "Saving..." : "Submit"}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
