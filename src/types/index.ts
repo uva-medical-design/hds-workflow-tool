@@ -84,6 +84,33 @@ export interface BuildFeedback {
   created_at: string;
 }
 
+// Feedback loop types (build mode)
+
+export type FeedbackTag = "win" | "gap" | "question" | "pivot" | "note";
+
+export interface FeedbackEntry {
+  id: string;
+  version_id: string;
+  project_id: string;
+  content: string;
+  tag: FeedbackTag;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ChecklistStatus = "working" | "partial" | "not_started";
+
+export interface FeatureChecklistItem {
+  id: string;
+  version_id: string;
+  project_id: string;
+  feature: string;
+  status: ChecklistStatus;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type FilePurpose = "research" | "screenshot" | "reference";
 
 export interface FileRecord {
