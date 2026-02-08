@@ -16,11 +16,14 @@ import type { Version, Project } from "@/types";
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
+  ClipboardIcon,
   ExternalLinkIcon,
   DownloadIcon,
   FileTextIcon,
+  HammerIcon,
   PresentationIcon,
 } from "lucide-react";
+import { generateBuildPrompt } from "@/lib/build-prompt";
 
 export default function VersionViewPage() {
   const params = useParams();
@@ -33,6 +36,7 @@ export default function VersionViewPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPrd, setShowPrd] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -81,6 +85,17 @@ export default function VersionViewPage() {
     a.download = `${project?.slug || "project"}-story-${version.version_number}.html`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function handleCopyBuildPrompt() {
+    if (!version?.prd_content) return;
+    const prompt = generateBuildPrompt({
+      prdContent: version.prd_content,
+      projectName: project?.name || "Project",
+    });
+    await navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   function handlePreviewStory() {
@@ -146,6 +161,39 @@ export default function VersionViewPage() {
                 {version.github_commit_sha && " Artifacts committed to GitHub."}
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Ready to Build */}
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <HammerIcon className="size-5" />
+              <CardTitle className="text-base">Ready to Build</CardTitle>
+            </div>
+            <CardDescription>
+              Copy the build prompt into Claude Code, Replit, or your preferred tool — then track your progress in Build Mode.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyBuildPrompt}
+              disabled={!version.prd_content}
+            >
+              <ClipboardIcon className="mr-2 size-3" />
+              {copied ? "Copied!" : "Copy Build Prompt"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() =>
+                router.push(`/dashboard/${projectId}/build/${versionId}`)
+              }
+            >
+              <HammerIcon className="mr-2 size-3" />
+              Start Building
+            </Button>
           </CardContent>
         </Card>
 
