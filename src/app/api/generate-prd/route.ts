@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase";
-import { prdCompilationPrompt } from "@/lib/prompts/artifact-prompts";
+import {
+  prdCompilationPrompt,
+  prdRevisionPrompt,
+} from "@/lib/prompts/artifact-prompts";
 
 function stripCodeFences(text: string): string {
   const trimmed = text.trim();
@@ -19,7 +22,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { projectId: string };
+  let body: {
+    projectId: string;
+    revisionInstructions?: {
+      previousPrd: string;
+      updates: Array<{
+        action: string;
+        section: string;
+        description: string;
+        rationale: string;
+      }>;
+      projectName: string;
+    };
+  };
   try {
     body = await request.json();
   } catch {
@@ -29,7 +44,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { projectId } = body;
+  const { projectId, revisionInstructions } = body;
   if (!projectId) {
     return NextResponse.json(
       { error: "projectId is required" },
@@ -39,7 +54,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const supabase = createServerClient();
+    const client = new Anthropic({ apiKey });
 
+    // Revision mode: apply targeted updates to existing PRD
+    if (revisionInstructions) {
+      const prompt = prdRevisionPrompt(
+        revisionInstructions.previousPrd,
+        revisionInstructions.updates,
+        revisionInstructions.projectName
+      );
+
+      const message = await client.messages.create({
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 8192,
+        system:
+          "You are a technical writer revising a Product Requirements Document based on build feedback. Output clean Markdown only.",
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const textBlock = message.content.find((b) => b.type === "text");
+      const prdContent = stripCodeFences(textBlock?.text || "");
+      return NextResponse.json({ prdContent });
+    }
+
+    // Standard mode: compile from all 7 phases
     // Fetch project with user info
     const { data: project, error: projectError } = await supabase
       .from("projects")
@@ -81,7 +119,6 @@ export async function POST(request: NextRequest) {
       { projectName, studentName }
     );
 
-    const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 8192,

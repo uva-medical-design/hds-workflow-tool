@@ -69,6 +69,42 @@ Include the full build prompt from Phase 7 synthesis.
 Output ONLY the Markdown content. Do not wrap in code fences. Write in a professional but accessible tone appropriate for a medical student audience.`;
 }
 
+interface SuggestedUpdate {
+  action: string;
+  section: string;
+  description: string;
+  rationale: string;
+}
+
+export function prdRevisionPrompt(
+  previousPrd: string,
+  updates: SuggestedUpdate[],
+  projectName: string
+): string {
+  const updateList = updates
+    .map(
+      (u, i) =>
+        `${i + 1}. **${u.action}** in "${u.section}": ${u.description} (Reason: ${u.rationale})`
+    )
+    .join("\n");
+
+  return `You are revising a Product Requirements Document based on build feedback.
+
+**Project:** ${projectName}
+
+## Previous PRD
+${previousPrd}
+
+## Requested Updates
+${updateList}
+
+---
+
+Apply the requested updates to the PRD. Keep the same section structure and formatting. Make targeted changes — do not rewrite sections that aren't affected by the updates. Preserve the student's voice and specific observations.
+
+Output ONLY the updated Markdown content. Do not wrap in code fences.`;
+}
+
 export function storyGenerationPrompt(
   prdContent: string,
   branding: { primaryColor: string; tagline: string; projectName: string }

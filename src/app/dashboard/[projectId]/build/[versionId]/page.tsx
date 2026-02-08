@@ -7,11 +7,15 @@ import { useUser } from "@/lib/user-context";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ClipboardIcon } from "lucide-react";
 import { generateBuildPrompt } from "@/lib/build-prompt";
+import { generateNewVersion, getNextVersion } from "@/lib/version-pipeline";
 import { PrdReference } from "@/components/build-mode/prd-reference";
 import { FeatureChecklist } from "@/components/build-mode/feature-checklist";
 import { FeedbackEntryInput } from "@/components/build-mode/feedback-entry-input";
 import { FeedbackEntryList } from "@/components/build-mode/feedback-entry-list";
+import { SynthesisResults } from "@/components/build-mode/synthesis-results";
 import type { Version, Project, FeedbackEntry, FeedbackTag } from "@/types";
+
+type SynthesisState = "idle" | "synthesizing" | "results" | "generating";
 
 export default function BuildModePage() {
   const params = useParams();
@@ -25,6 +29,12 @@ export default function BuildModePage() {
   const [entries, setEntries] = useState<FeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  // Synthesis state machine
+  const [synthesisState, setSynthesisState] = useState<SynthesisState>("idle");
+  const [synthesisData, setSynthesisData] = useState<any>(null);
+  const [synthesisError, setSynthesisError] = useState<string | null>(null);
+  const [generationStep, setGenerationStep] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -102,6 +112,130 @@ export default function BuildModePage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function handleSynthesize() {
+    setSynthesisState("synthesizing");
+    setSynthesisError(null);
+
+    try {
+      const res = await fetch("/api/synthesize-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionId, projectId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setSynthesisError(data.error || "Synthesis failed");
+        setSynthesisState("idle");
+        return;
+      }
+
+      setSynthesisData(data.synthesis);
+      setSynthesisState("results");
+    } catch {
+      setSynthesisError("Network error. Please try again.");
+      setSynthesisState("idle");
+    }
+  }
+
+  async function handleAcceptSynthesis(
+    selectedUpdates: Array<{
+      action: string;
+      section: string;
+      description: string;
+      rationale: string;
+    }>,
+    isMajor: boolean
+  ) {
+    if (!version || !project) return;
+
+    setSynthesisState("generating");
+    setSynthesisError(null);
+
+    try {
+      // Step 1: Generate revised PRD
+      setGenerationStep("Generating revised PRD...");
+      const prdRes = await fetch("/api/generate-prd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          revisionInstructions: {
+            previousPrd: version.prd_content,
+            updates: selectedUpdates,
+            projectName: project.name || "Untitled",
+          },
+        }),
+      });
+      const prdData = await prdRes.json();
+      if (!prdRes.ok || prdData.error) {
+        throw new Error(prdData.error || "PRD revision failed");
+      }
+
+      // Step 2: Generate updated story
+      setGenerationStep("Creating updated design story...");
+      const branding = {
+        primaryColor: "#18181b",
+        tagline: "",
+        projectName: project.name || "Untitled",
+      };
+      const storyRes = await fetch("/api/generate-story", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prdContent: prdData.prdContent,
+          branding,
+        }),
+      });
+      const storyData = await storyRes.json();
+      if (!storyRes.ok || storyData.error) {
+        throw new Error(storyData.error || "Story generation failed");
+      }
+
+      // Step 3: Compute version number
+      const nextVersion = getNextVersion(version.version_number, isMajor);
+
+      // Step 4: Create version record (+ GitHub commit)
+      const diffSummary = {
+        added: selectedUpdates
+          .filter((u) => u.action.startsWith("+"))
+          .map((u) => u.description),
+        changed: selectedUpdates
+          .filter((u) => u.action.startsWith("~"))
+          .map((u) => u.description),
+        removed: selectedUpdates
+          .filter((u) => u.action.startsWith("-"))
+          .map((u) => u.description),
+      };
+
+      const result = await generateNewVersion({
+        projectId,
+        projectName: project.name || "Untitled",
+        projectSlug: project.slug || "project",
+        studentName: user?.name || "Unknown",
+        versionNumber: nextVersion,
+        trigger: "build_feedback",
+        triggerDetails: {
+          previousVersionId: versionId,
+          updatesApplied: selectedUpdates.length,
+          isMajor,
+        },
+        prdContent: prdData.prdContent,
+        storyContent: storyData.storyContent,
+        diffSummary,
+        onStep: setGenerationStep,
+      });
+
+      // Navigate to the new version's build page
+      router.push(`/dashboard/${projectId}/build/${result.versionId}`);
+    } catch (err: any) {
+      console.error("Version generation error:", err);
+      setSynthesisError(err.message || "Version generation failed");
+      setSynthesisState("results");
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -114,6 +248,19 @@ export default function BuildModePage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">Version not found</p>
+      </div>
+    );
+  }
+
+  // Full-screen generating state
+  if (synthesisState === "generating") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6">
+        <div className="size-8 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
+        <p className="text-sm font-medium">{generationStep}</p>
+        <p className="text-xs text-muted-foreground">
+          Generating a new version from your feedback — this may take a minute.
+        </p>
       </div>
     );
   }
@@ -179,12 +326,59 @@ export default function BuildModePage() {
           </div>
         </div>
 
-        {/* Synthesize button — disabled placeholder, Commit 6-7 */}
-        <div className="flex justify-center pt-4">
-          <Button size="lg" disabled>
-            Synthesize Feedback (coming soon)
-          </Button>
-        </div>
+        {/* Synthesis Error */}
+        {synthesisError && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950">
+            <p className="text-sm text-red-800 dark:text-red-300">
+              {synthesisError}
+            </p>
+          </div>
+        )}
+
+        {/* Synthesis Results */}
+        {synthesisState === "results" && synthesisData && (
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              AI Synthesis
+            </h2>
+            <SynthesisResults
+              synthesis={synthesisData}
+              currentVersion={version.version_number}
+              onAccept={handleAcceptSynthesis}
+              onSkip={() => {
+                setSynthesisState("idle");
+                setSynthesisData(null);
+              }}
+              accepting={false}
+            />
+          </div>
+        )}
+
+        {/* Synthesize Button */}
+        {synthesisState === "idle" && (
+          <div className="flex justify-center pt-4">
+            <Button
+              size="lg"
+              onClick={handleSynthesize}
+              disabled={entries.length === 0}
+            >
+              {entries.length === 0
+                ? "Add feedback to synthesize"
+                : "Synthesize Feedback"}
+            </Button>
+          </div>
+        )}
+
+        {synthesisState === "synthesizing" && (
+          <div className="flex justify-center pt-4">
+            <div className="flex items-center gap-3">
+              <div className="size-5 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Analyzing feedback patterns...
+              </p>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
