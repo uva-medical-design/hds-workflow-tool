@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,15 +13,59 @@ const TAG_CONFIG: { tag: FeedbackTag; label: string; color: string }[] = [
   { tag: "pivot", label: "Pivot", color: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-700" },
 ];
 
+function getDraftKey(versionId: string) {
+  return `hds-feedback-draft-${versionId}`;
+}
+
 interface FeedbackEntryInputProps {
+  versionId: string;
   onSubmit: (content: string, tag: FeedbackTag) => Promise<void>;
   disabled?: boolean;
 }
 
-export function FeedbackEntryInput({ onSubmit, disabled }: FeedbackEntryInputProps) {
+export function FeedbackEntryInput({ versionId, onSubmit, disabled }: FeedbackEntryInputProps) {
   const [content, setContent] = useState("");
   const [tag, setTag] = useState<FeedbackTag>("note");
   const [submitting, setSubmitting] = useState(false);
+
+  // Restore draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(getDraftKey(versionId));
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft.content) setContent(draft.content);
+        if (draft.tag) setTag(draft.tag);
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, [versionId]);
+
+  // Persist draft to localStorage on change
+  useEffect(() => {
+    const trimmed = content.trim();
+    if (trimmed) {
+      localStorage.setItem(getDraftKey(versionId), JSON.stringify({ content, tag }));
+    } else {
+      localStorage.removeItem(getDraftKey(versionId));
+    }
+  }, [content, tag, versionId]);
+
+  // beforeunload warning when draft has content
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (content.trim()) {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [content]);
+
+  const clearDraft = useCallback(() => {
+    localStorage.removeItem(getDraftKey(versionId));
+  }, [versionId]);
 
   async function handleSubmit() {
     const trimmed = content.trim();
@@ -32,6 +76,7 @@ export function FeedbackEntryInput({ onSubmit, disabled }: FeedbackEntryInputPro
       await onSubmit(trimmed, tag);
       setContent("");
       setTag("note");
+      clearDraft();
     } finally {
       setSubmitting(false);
     }

@@ -327,7 +327,7 @@ export default function BuildModePage() {
             Feedback Log
           </h2>
           <div className="space-y-4">
-            <FeedbackEntryInput onSubmit={handleSubmitEntry} />
+            <FeedbackEntryInput versionId={versionId} onSubmit={handleSubmitEntry} />
             <FeedbackEntryList
               entries={entries}
               onDelete={handleDeleteEntry}
