@@ -37,11 +37,22 @@ export function extractMvpFeatures(prdContent: string): string[] {
       continue;
     }
 
-    // Collect bullet items in the feature/mvp section
+    // Collect features from bullet items or sub-headings
     if (inFeatureSection) {
+      // Match bullet: - **Feature Name**: description
       const bulletMatch = trimmed.match(/^[-*]\s+\*?\*?(.+?)\*?\*?\s*(?:[:\-–—]|$)/);
       if (bulletMatch) {
         const feature = bulletMatch[1].replace(/\*+/g, "").trim();
+        if (feature.length > 3 && feature.length < 200) {
+          features.push(feature);
+        }
+        continue;
+      }
+
+      // Match sub-heading: #### Core Feature N: Name or #### Feature Name
+      const headingMatch = trimmed.match(/^####\s+(?:Core\s+)?(?:Feature\s+\d+\s*[:\-–—]\s*)?(.+)/i);
+      if (headingMatch) {
+        const feature = headingMatch[1].replace(/\*+/g, "").trim();
         if (feature.length > 3 && feature.length < 200) {
           features.push(feature);
         }
