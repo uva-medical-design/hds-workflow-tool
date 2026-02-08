@@ -190,8 +190,8 @@ INSERT INTO users (name, email, campus, role) VALUES
   ('Kevin Shannon', 'ks@virginia.edu', NULL, 'student'),
   ('Joselyne Tessa Tonleu', 'jtt@virginia.edu', NULL, 'student'),
   ('Matt Trowbridge', 'mtrowbridge@virginia.edu', 'UVA Cville', 'instructor'),
-  ('Farah Turkistani', 'ft@virginia.edu', NULL, 'ta'),
-  ('Jonathan Swap', 'js@virginia.edu', NULL, 'ta')
+  ('Farah Turkistani', 'FT8XX@uvahealth.org', NULL, 'ta'),
+  ('Jonathan Swap', 'JS7JX@uvahealth.org', NULL, 'ta')
 ON CONFLICT (email) DO NOTHING;
 
 -- ============================================
