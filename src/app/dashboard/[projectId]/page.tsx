@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PHASE_CONFIGS } from "@/lib/phase-config";
-import { ArrowLeftIcon, CheckCircleIcon, CircleIcon, FileTextIcon, PlayCircleIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckCircleIcon, CircleIcon, FileTextIcon, HammerIcon, PlayCircleIcon } from "lucide-react";
 
 export default function ProjectWorkspacePage() {
   const params = useParams();
@@ -163,6 +163,33 @@ export default function ProjectWorkspacePage() {
             );
           })}
         </div>
+
+        {/* Build Mode CTA */}
+        {project.status === "completed" && versions.length > 0 && (
+          <Card
+            className="mt-6 cursor-pointer border-foreground/20 transition-colors hover:border-foreground/30"
+            onClick={() =>
+              router.push(
+                `/dashboard/${projectId}/build/${versions[0].id}`
+              )
+            }
+          >
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <HammerIcon className="size-5 text-foreground" />
+                <div className="flex-1">
+                  <CardTitle className="text-base">Build Mode</CardTitle>
+                  <CardDescription>
+                    Track your prototype progress, log observations, and synthesize feedback
+                  </CardDescription>
+                </div>
+                <Button size="sm">
+                  {versions[0] ? "Continue Building" : "Start Building"}
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+        )}
 
         {/* Version History */}
         {versions.length > 0 && (
